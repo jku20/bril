@@ -831,7 +831,6 @@ function evalInstr(instr: bril.Instruction, state: State, tracing: boolean): Act
 
 var traces = [];
 function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | null {
-  console.log("new call");
   let cur_trace = [];
   let cur_traces = [];
   const max_trace_len = 5;
@@ -839,13 +838,11 @@ function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | 
     const line = func.instrs[i];
     if ("op" in line) {
       if (tracing) {
-        console.log(cur_traces);
         // The current speculative compiler doesn't support interprocedural optimization. Therefore all of these can have
         // side effects which can't be rolled back.
         // call can have a print in it, ret changes the function stack, and print writes to stdout.
         if (line.op === "call" || line.op === "ret" || line.op === "print") {
           if (cur_trace.length > 1) {
-            // console.log(cur_trace);
             cur_traces.push(cur_trace);
             cur_trace = [];
           }
@@ -865,15 +862,10 @@ function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | 
         case "end": {
           // Return from this function.
           if (tracing) {
-            // if (cur_trace.length > 1) {
-            //   cur_traces.push(cur_trace);
-            // }
-            // console.error(cur_traces);
             for (const trace of cur_traces) {
               // Check for no overlapping traces.
               let overlaps = false;
               for (const i of trace) {
-                console.log(traces);
                 for (const t of traces) {
                   if (t.includes(i)) {
                     overlaps = true;
