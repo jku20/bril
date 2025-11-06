@@ -354,7 +354,7 @@ type State = {
 /**
  * Interpet a call instruction.
  */
-function evalCall(instr: bril.Operation, state: State): Action {
+function evalCall(instr: bril.Operation, state: State, tracing: boolean): Action {
   // Which function are we calling?
   const funcName = getFunc(instr, 0);
   const func = findFunc(funcName, state.funcs);
@@ -395,7 +395,7 @@ function evalCall(instr: bril.Operation, state: State): Action {
     ssaEnv: new Map(),
     specparent: null, // Speculation not allowed.
   };
-  const retVal = evalFunc(func, newState);
+  const retVal = evalFunc(func, newState, tracing);
   state.icount = newState.icount;
 
   // Dynamically check the function's return value and type.
@@ -446,7 +446,7 @@ function evalCall(instr: bril.Operation, state: State): Action {
  * otherwise, return "next" to indicate that we should proceed to the next
  * instruction or "end" to terminate the function.
  */
-function evalInstr(instr: bril.Instruction, state: State): Action {
+function evalInstr(instr: bril.Instruction, state: State, tracing: boolean): Action {
   state.icount += BigInt(1);
 
   // Check that we have the right number of arguments.
@@ -681,7 +681,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "call": {
-      return evalCall(instr, state);
+      return evalCall(instr, state, tracing);
     }
 
     case "alloc": {
@@ -829,17 +829,62 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
   throw error(`unhandled opcode ${instr.op}`);
 }
 
-function evalFunc(func: bril.Function, state: State): Value | null {
+var traces = [];
+function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | null {
+  console.log("new call");
+  let cur_trace = [];
+  let cur_traces = [];
+  const max_trace_len = 5;
   for (let i = 0; i < func.instrs.length; ++i) {
     const line = func.instrs[i];
     if ("op" in line) {
-      // Run an instruction.
-      const action = evalInstr(line, state);
+      if (tracing) {
+        console.log(cur_traces);
+        // The current speculative compiler doesn't support interprocedural optimization. Therefore all of these can have
+        // side effects which can't be rolled back.
+        // call can have a print in it, ret changes the function stack, and print writes to stdout.
+        if (line.op === "call" || line.op === "ret" || line.op === "print") {
+          if (cur_trace.length > 1) {
+            // console.log(cur_trace);
+            cur_traces.push(cur_trace);
+            cur_trace = [];
+          }
+        } else {
+          if (cur_trace.length >= 5) {
+            cur_traces.push(cur_trace);
+            cur_trace = [ i ];
+          } else {
+            cur_trace.push(i);
+          }
+        }
+      }
+      const action = evalInstr(line, state, tracing);
 
       // Take the prescribed action.
       switch (action.action) {
         case "end": {
           // Return from this function.
+          if (tracing) {
+            // if (cur_trace.length > 1) {
+            //   cur_traces.push(cur_trace);
+            // }
+            // console.error(cur_traces);
+            for (const trace of cur_traces) {
+              // Check for no overlapping traces.
+              let overlaps = false;
+              for (const i of trace) {
+                console.log(traces);
+                for (const t of traces) {
+                  if (t.includes(i)) {
+                    overlaps = true;
+                  }
+                }
+              }
+              if (!overlaps) {
+                traces.push(trace);
+              }
+            }
+          }
           return action.ret;
         }
         case "speculate": {
@@ -898,6 +943,24 @@ function evalFunc(func: bril.Function, state: State): Value | null {
   if (state.specparent) {
     throw error(`implicit return in speculative state`);
   }
+
+  if (tracing) {
+    for (const trace of cur_traces) {
+      // Check for no overlapping traces.
+      let overlaps = false;
+      for (const i of trace) {
+        for (const t of traces) {
+          if (t.includes(i)) {
+            overlaps = true;
+          }
+        }
+      }
+      if (!overlaps) {
+        traces.push(trace);
+      }
+    }
+  }
+
   return null;
 }
 
@@ -988,6 +1051,12 @@ function evalProg(prog: bril.Program) {
     profiling = true;
     args.splice(pidx, 1);
   }
+  let tracing = false;
+  const tidx = args.indexOf("-t");
+  if (tidx > -1) {
+    tracing = true;
+    args.splice(tidx, 1);
+  }
 
   // Remaining arguments are for the main function.k
   const expected = main.args || [];
@@ -1001,7 +1070,7 @@ function evalProg(prog: bril.Program) {
     ssaEnv: new Map(),
     specparent: null,
   };
-  evalFunc(main, state);
+  evalFunc(main, state, tracing);
 
   if (!heap.isEmpty()) {
     throw error(
@@ -1011,6 +1080,11 @@ function evalProg(prog: bril.Program) {
 
   if (profiling) {
     console.error(`total_dyn_inst: ${state.icount}`);
+  }
+  if (tracing) {
+    for (const trace of traces) {
+      console.error(trace.join(","));
+    }
   }
 }
 
