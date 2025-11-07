@@ -830,6 +830,7 @@ function evalInstr(instr: bril.Instruction, state: State, tracing: boolean): Act
 }
 
 var traces = [];
+var funcs = [];
 function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | null {
   let cur_trace = [];
   let cur_traces = [];
@@ -874,6 +875,7 @@ function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | 
               }
               if (!overlaps) {
                 traces.push(trace);
+                funcs.push(func.name);
               }
             }
           }
@@ -949,6 +951,7 @@ function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | 
       }
       if (!overlaps) {
         traces.push(trace);
+        funcs.push(func.name);
       }
     }
   }
@@ -1074,8 +1077,8 @@ function evalProg(prog: bril.Program) {
     console.error(`total_dyn_inst: ${state.icount}`);
   }
   if (tracing) {
-    for (const trace of traces) {
-      console.error(trace.join(","));
+    for (let i = 0; i < traces.length; i++) {
+      console.error(funcs[i] + ":" + traces[i].join(","));
     }
   }
 }
