@@ -845,8 +845,8 @@ function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | 
         if (line.op === "call" || line.op === "ret" || line.op === "print") {
           if (cur_trace.length > 1) {
             cur_traces.push(cur_trace);
-            cur_trace = [];
           }
+          cur_trace = [];
         } else {
           let cond = false;
           if (line.op === "br") {
