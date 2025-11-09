@@ -848,11 +848,15 @@ function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | 
             cur_trace = [];
           }
         } else {
+          let cond = false;
+          if (line.op === "br") {
+            cond = getBool(line, state.env, 0);
+          }
           if (cur_trace.length >= 5) {
             cur_traces.push(cur_trace);
-            cur_trace = [ i ];
+            cur_trace = [ [i, cond] ];
           } else {
-            cur_trace.push(i);
+            cur_trace.push( [i, cond] );
           }
         }
       }
@@ -868,8 +872,10 @@ function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | 
               let overlaps = false;
               for (const i of trace) {
                 for (const t of traces) {
-                  if (t.includes(i)) {
-                    overlaps = true;
+                  for (const j of t) {
+                    if (i[0] === j[0]) {
+                      overlaps = true;
+                    }
                   }
                 }
               }
@@ -944,8 +950,10 @@ function evalFunc(func: bril.Function, state: State, tracing: boolean): Value | 
       let overlaps = false;
       for (const i of trace) {
         for (const t of traces) {
-          if (t.includes(i)) {
-            overlaps = true;
+          for (const j of t) {
+            if (i[0] === j[0]) {
+              overlaps = true;
+            }
           }
         }
       }
@@ -1078,7 +1086,7 @@ function evalProg(prog: bril.Program) {
   }
   if (tracing) {
     for (let i = 0; i < traces.length; i++) {
-      console.error(funcs[i] + ":" + traces[i].join(","));
+      console.error(funcs[i] + ":" + traces[i].join(";"));
     }
   }
 }
